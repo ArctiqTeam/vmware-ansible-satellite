@@ -53,7 +53,40 @@
         url: "https://{{ satellite_server }}/api/hosts"
         method: POST
         user: "{{ lookup('env','SAT_USER') }}"
-        password: "{{ lookup('env',SAT_PASSWORD') }}"
+        password: "{{ lookup('env','SAT_PASSWORD') }}"
+        headers:
+          application: json
+          version: 2
+        force_basic_auth: yes
+        validate_certs: no
+        follow_redirects: all
+        return_content: yes
+        status_code: 201,422
+        body_format: json
+        body: |
+          {
+                                 "name": "{{ vmware_guest_name }}",
+                          "location_id": 2,
+                      "organization_id": 1,
+                       "environment_id": 1,
+                                  "mac": "{{ vminfo.instance.hw_eth0.macaddress }}",
+                      "architecture_id": 1,
+                            "domain_id": 2,
+                      "puppet_proxy_id": 1,
+                   "operatingsystem_id": "2",
+                            "ptable_id": 61,
+                         "hostgroup_id": 3,
+                                "build": true,
+                              "enabled": true,
+                              "managed": true,
+                            "overwrite": true
+          }
+    - name: Get Hosts list
+      uri:
+        url: "https://{{ satellite_server }}/api/v2/hosts"
+        method: GET
+        user: "{{ lookup('env','SAT_USER') }}"
+        password: "{{ lookup('env','SAT_PASSWORD') }}"
         headers:
           application: json
           version: 2
@@ -62,23 +95,20 @@
         follow_redirects: all
         return_content: yes
         status_code: 200
-        body_format: json
-        body: |
-          {
-                                 "name": {{ vmware_guest_name }},
-                          "location_id": 2,
-                      "organization_id": 1,
-                       "environment_id": 1,
-                                  "mac": {{ vminfo.instance.hw_eth0.macaddress }},
-                      "architecture_id": 1,
-                            "domain_id": 1,
-                      "puppet_proxy_id": 1,
-                   "operatingsystem_id": 2,
-                            "ptable_id": 61,
-                         "hostgroup_id": 3,
-                                "build": true,
-                              "enabled": true,
-                              "managed": true,
-                            "overwrite": true
-          }
-      register: satinfo
+        body: "search={{ vmware_guest_name }}"
+      register: satvminfo
+    - name: Get the Boot ISO
+#      get_url:
+#        url: "https://{{ satellite_server }}/bootdisk/api/hosts/{{ satvminfo.json.results[0].id }}"
+#        dest: "/var/tmp/{{ satvminfo.json.results[0].name }}.iso"
+#        force_basic_auth: yes
+#        headers:
+#          application: json
+#        url_username: "{{ lookup('env','SAT_USER') }}"
+#        url_password: "{{ lookup('env','SAT_PASSWORD') }}"
+#        validate_certs: no
+#        force: yes
+      shell: 'hammer -d bootdisk host --host {{ satvminfo.json.results[0].name }}'
+      delegate_to: "{{ satellite_server }}"
+      remote_user: root
+
