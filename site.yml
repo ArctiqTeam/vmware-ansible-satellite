@@ -1,0 +1,84 @@
+---
+- name: Create VM from Vcenter Template
+  hosts: localhost
+  connection: local
+  gather_facts: no
+  vars:
+    vmware_vsphere_hostname: "cdcug-vcenter.cdcug.local"
+    vmware_vsphere_datacenter: "cdcug-toronto-dc1"
+    vmware_vsphere_esxi_hostname: "cdcug-esx1.cdcug.local"
+    vmware_vsphere_cluster: "cdcug-toronto-cluster1"
+    vmware_guest_template: "arctiq-template-empty-rhel7"
+    vmware_guest_name: "prov-test"
+    vmware_guest_network_name: "VM Network"
+    vmware_guest_memory: 2048
+    vmware_guest_cpus: 1
+    vmware_guest_disk_size: 15
+    vmware_guest_datastore: "CDCUG_VMware_mgmt_nfs"
+    satellite_server: "cdcug-satellite.cdcug.local"
+
+  tasks:
+    - name: Provision VM on ESXi Host
+      vmware_guest:
+        hostname: "{{ vmware_vsphere_hostname }}"
+        username: "{{ lookup('env','VMWARE_USER') }}"
+        password: "{{ lookup('env','VMWARE_PASSWORD') }}"
+        validate_certs: no
+        datacenter: "{{ vmware_vsphere_datacenter }}"
+        cluster: "{{ vmware_vsphere_cluster }}"
+        name: "{{ vmware_guest_name }}"
+        template: "{{ vmware_guest_template }}"
+        hardware:
+          memory_mb: "{{ vmware_guest_memory }}"
+          num_cpus: "{{ vmware_guest_cpus }}"
+        disk:
+          - size_gb: "{{ vmware_guest_disk_size }}"
+            type: thin
+            datastore: "{{ vmware_guest_datastore }}"
+        networks:
+        - name: "{{ vmware_guest_network_name }}"
+        state: poweredoff
+      ignore_errors: yes
+    - name: Get VM info
+      vmware_guest_facts:
+        hostname: "{{ vmware_vsphere_hostname }}"
+        username: "{{ lookup('env','VMWARE_USER') }}"
+        password: "{{ lookup('env','VMWARE_PASSWORD') }}"
+        validate_certs: no
+        datacenter: "{{ vmware_vsphere_datacenter }}"
+        name: "{{ vmware_guest_name }}"
+      register: vminfo
+    - name: Create the host record in Satellite
+      uri:
+        url: "https://{{ satellite_server }}/api/hosts"
+        method: POST
+        user: "{{ lookup('env','SAT_USER') }}"
+        password: "{{ lookup('env',SAT_PASSWORD') }}"
+        headers:
+          application: json
+          version: 2
+        force_basic_auth: yes
+        validate_certs: no
+        follow_redirects: all
+        return_content: yes
+        status_code: 200
+        body_format: json
+        body: |
+          {
+                                 "name": {{ vmware_guest_name }},
+                          "location_id": 2,
+                      "organization_id": 1,
+                       "environment_id": 1,
+                                  "mac": {{ vminfo.instance.hw_eth0.macaddress }},
+                      "architecture_id": 1,
+                            "domain_id": 1,
+                      "puppet_proxy_id": 1,
+                   "operatingsystem_id": 2,
+                            "ptable_id": 61,
+                         "hostgroup_id": 3,
+                                "build": true,
+                              "enabled": true,
+                              "managed": true,
+                            "overwrite": true
+          }
+      register: satinfo
