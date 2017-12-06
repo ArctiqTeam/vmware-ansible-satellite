@@ -143,3 +143,11 @@
           vm_cdrom:
             type: "iso"
             iso_path: "{{ vmware_guest_datastore }}/bootiso/{{ satvminfo.json.results[0].name }}.iso"
+        state: reconfigured
+    - name: Boot the host
+      vsphere_guest:
+        vcenter_hostname: "{{ vmware_vsphere_hostname }}"
+        username: "{{ lookup('env','VMWARE_USER') }}"
+        password: "{{ lookup('env','VMWARE_PASSWORD') }}"
+        guest: "{{ vmware_guest_name }}"
+        state: powered_on
