@@ -109,6 +109,37 @@
 #        validate_certs: no
 #        force: yes
       shell: 'hammer -d bootdisk host --host {{ satvminfo.json.results[0].name }}'
+      become: yes
       delegate_to: "{{ satellite_server }}"
-      remote_user: root
-
+#    - name: Remove existing ISO
+#      file:
+#        path: "/var/tmp/{{ satvminfo.json.results[0].name }}.iso"
+#        state: absent
+#      ignore_errors: yes
+    - name: Fetch the ISO from Satellite
+      fetch:
+        src: "/root/{{ satvminfo.json.results[0].name }}.iso"
+        dest: "/var/tmp/"
+        flat: yes
+      delegate_to: "{{ satellite_server }}"
+      become: yes
+    - name: Copy ISO to VMware Datastore
+      vsphere_copy:
+        host: "{{ vmware_vsphere_hostname }}"
+        username: "{{ lookup('env','VMWARE_USER') }}"
+        password: "{{ lookup('env','VMWARE_PASSWORD') }}"
+        src: "/var/tmp/{{ satvminfo.json.results[0].name }}.iso"
+        datacenter: "{{ vmware_vsphere_datacenter }}"
+        datastore: "{{ vmware_guest_datastore }}"
+        path: "bootiso/{{ satvminfo.json.results[0].name }}.iso"
+        validate_certs: no
+    - name: Load the boot iso
+      vsphere_guest:
+        vcenter_hostname: "{{ vmware_vsphere_hostname }}"
+        username: "{{ lookup('env','VMWARE_USER') }}"
+        password: "{{ lookup('env','VMWARE_PASSWORD') }}"
+        guest: "{{ vmware_guest_name }}"
+        vm_hardware:
+          vm_cdrom:
+            type: "iso"
+            iso_path: "{{ vmware_guest_datastore }}/bootiso/{{ satvminfo.json.results[0].name }}.iso"
